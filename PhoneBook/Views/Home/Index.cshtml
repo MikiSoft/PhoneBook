@@ -1,0 +1,126 @@
+﻿<div class="container">
+    <form id="form">
+        <div id="error" class="alert alert-danger hidden">
+            
+        </div>
+        <div class="form-group">
+            <label for="FirstName">First name:</label>
+            <input type="text" class="form-control" id="FirstName" placeholder="Enter first name" name="FirstName">
+        </div>
+        <div class="form-group">
+            <label for="LastName">Last name:</label>
+            <input type="text" class="form-control" id="LastName" placeholder="Enter last name" name="LastName">
+        </div>
+        <div class="form-group">
+            <label for="PhoneNum">Phone number:</label>
+            <input type="text" class="form-control" id="PhoneNum" placeholder="Enter phone number" name="PhoneNum">
+        </div>
+        <button type="submit" id="submit" class="btn btn-default">Submit</button>
+    </form>
+
+    <hr>
+
+    <input type="text" id="search" class="form-control" placeholder="Search">
+
+    <table id="table" class="table table-striped">
+        <thead>
+            <tr>
+                <th></th>
+                <th data-field="FirstName">First Name</th>
+                <th data-field="LastName">Last Name</th>
+                <th data-field="PhoneNum">Phone Number</th>
+            </tr>
+        </thead>
+        <tbody><tr id="loading"><td colspan="4"><center>Loading, please wait...</center></td></tr></tbody>
+    </table>
+    <button id="delete" class="btn btn-danger" onclick="del()" disabled>Delete Selected</button>
+</div>
+
+@section scripts{
+<script>
+    var ids = [];
+
+    function selectItem() {
+        var id = $(this).attr('data-id'), i = ids.indexOf(id);
+        if (i > -1) ids.splice(i, 1); else ids.push(id);
+        $("#delete").prop('disabled', ids.length == 0);
+    }
+
+    function appendRows(objs) {
+        for (var i = 0; i < objs.length; i++)
+            $("#table").find('tbody')
+                .append($('<tr>')
+                    .append($('<td>')
+                        .append($('<input>', {
+                            'type': 'checkbox',
+                            'data-id': objs[i].ID,
+                            'click': selectItem
+                        }))
+                    )
+                    .append($('<td>')
+                        .text(objs[i].FirstName)
+                    )
+                    .append($('<td>')
+                        .text(objs[i].LastName)
+                    )
+                    .append($('<td>')
+                        .text(objs[i].PhoneNum)
+                    )
+                );
+    }
+
+    $.getJSON("/api/items/", function (objs) {
+        $("#loading").addClass('hidden');
+        appendRows(objs);
+    });
+    $("#form").on("submit", function (event) {
+        event.preventDefault();
+        $("#error").addClass("hidden");
+        $("#form > :not('#alert')").each(function () {
+            $(this).removeClass('has-error');
+        });
+        $.ajax({
+            type: "POST",
+            url: "/api/items/",
+            data: $("#form").serializeArray().reduce(function (m, o) { m[o.name] = o.value; return m; }, {}),
+            success: function (obj) {
+                appendRows([obj]);
+                $("#form input").val('');
+            },
+            error: function (resp) {
+                var obj = resp.responseJSON, err = '';
+                if (obj.ModelState !== undefined) {
+                    var keys = Object.keys(obj.ModelState);
+                    for (var i = 0; i < keys.length; i++) {
+                        $('#' + keys[i].split(".")[1]).parent().addClass('has-error');
+                        err += obj.ModelState[keys[i]].join(' ')+' ';
+                    }
+                }
+                $("#error").text(err || obj.Message).removeClass("hidden");
+            }
+        });
+    });
+
+    function del() {
+        if (confirm("Are you sure you want to proceed?"))
+            $.ajax({
+                type: "DELETE",
+                url: "/api/items/?ids=" + ids.join(','),
+                success: function () {
+                    for (var i = 0; i < ids.length; i++) $("[data-id='" + ids[i] + "']").parent().parent().remove();
+                    ids.length = 0;
+                    $("#delete").prop('disabled', true);
+                }
+            });
+    }
+
+    $("#search").on('input', function () {
+        var text = $(this).val();
+        $("#table").find("tbody > tr:not('#loading')").each(function () {
+            var $tds = $(this).find('td');
+            for (var i = 1; i < 4; i++) if ($tds.eq(i).text().toLowerCase().indexOf(text) > -1) break;
+            if (i == 4) $(this).addClass('hidden'); else $(this).removeClass('hidden');
+        });
+    });
+</script>
+}
